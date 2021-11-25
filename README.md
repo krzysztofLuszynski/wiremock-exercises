@@ -1,0 +1,3 @@
+# wiremock-exercises
+Wiremock exercises
+

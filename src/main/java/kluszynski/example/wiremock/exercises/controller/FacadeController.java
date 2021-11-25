@@ -6,6 +6,8 @@ import io.netty.handler.timeout.WriteTimeoutHandler;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.reactive.ReactorClientHttpConnector;
+import org.springframework.retry.policy.SimpleRetryPolicy;
+import org.springframework.retry.support.RetryTemplate;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.reactive.function.client.WebClient;
@@ -23,9 +25,17 @@ public class FacadeController {
 
     @GetMapping("/facade")
     public String get() {
-        Mono<String> otherServiceResponse = callOtherService();
+        RetryTemplate template = new RetryTemplate();
 
-        return otherServiceResponse.block();
+        SimpleRetryPolicy policy = new SimpleRetryPolicy();
+        policy.setMaxAttempts(3);
+
+        template.setRetryPolicy(policy);
+
+        return template.execute(context -> {
+            Mono<String> otherServiceResponse = callOtherService();
+            return otherServiceResponse.block();
+        });
     }
 
     private Mono<String> callOtherService() {
@@ -39,8 +49,8 @@ public class FacadeController {
 
     private WebClient createWebClient() {
         HttpClient httpClient = HttpClient.create()
-                .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, 5000)
-                .responseTimeout(Duration.ofMillis(5000))
+                .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, 1000)
+                .responseTimeout(Duration.ofMillis(1000))
                 .doOnConnected(conn ->
                         conn.addHandlerLast(new ReadTimeoutHandler(1000, TimeUnit.MILLISECONDS))
                                 .addHandlerLast(new WriteTimeoutHandler(1000, TimeUnit.MILLISECONDS)));
